@@ -9,8 +9,8 @@ import urllib3, json, threading, datetime, certifi
 class main():
 
     # Config
-    location = "Melbourne, Clayton" # {Country} or {Country, City} without parenthesis.
-    url = "https://query.yahooapis.com/v1/public/yql?q="
+    location = "New York" # {Country} or {Country, City} without parenthesis.
+    url = "https://www.visualcrossing.com/weather-forecast/New%20York/metric"
     weatherRefresh = 600 # in seconds, default 10 minutes
 
 
