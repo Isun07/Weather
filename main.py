@@ -1,25 +1,27 @@
 """
 Created by N3evin
-An application that display time and weather information for Raspberry Pi
+An application that displays time and weather information for Raspberry Pi
 """
 
 from tkinter import *
-import urllib3, json, threading, datetime, certifi
+import urllib.request
+import json
+import threading
+import datetime
+import sys
 
-class main():
+class MainApp:
 
     # Config
-    location = "New York" # {Country} or {Country, City} without parenthesis.
-    url = "https://www.visualcrossing.com/weather-forecast/New%20York/metric"
-    weatherRefresh = 600 # in seconds, default 10 minutes
-
+    location = "New York"  # {Country} or {Country, City} without parenthesis.
+    url = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/New%20York?include=fcst%2Cobs%2Chistfcst%2Cstats%2Cdays%2Chours%2Ccurrent%2Calerts&key=YOUR_API_KEY&options=beta&contentType=json"
+    weatherRefresh = 600  # in seconds, default 10 minutes
 
     def __init__(self):
         # Variables
         self.dateString = None
         self.currentTempString = None
         self.currentWeatherImage = None
-        self.currentTempString = None
         self.weatherLastUpdateString = None
         self.content = None
         self.days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -28,13 +30,12 @@ class main():
         self.weatherThread = threading.Timer(0, None)
         self.timeThread = threading.Timer(0, None)
 
-
-        # Initialized the frame.
+        # Initialize the frame.
         self.top = Tk()
-        self.top.attributes('-fullscreen',True) # Set to fullscreen
+        self.top.attributes('-fullscreen', True)  # Set to fullscreen
         self.top.config(cursor="none", bg="black")
-        self.top.title("WeatherPi v0.1") # Title of app
-        self.top.protocol('WM_DELETE_WINDOW', self.stop) # When close, stop all thread
+        self.top.title("WeatherPi v0.1")  # Title of app
+        self.top.protocol('WM_DELETE_WINDOW', self.stop)  # When close, stop all thread
         self.top.geometry("480x320")
 
         # Configure the weight, so that widget will be centered.
@@ -45,43 +46,40 @@ class main():
         self.updateWeather()
         self.run()
 
-
     # Retrieve weather from url and update weather.
     def updateWeather(self):
-        # Reading weather info
-        http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
-        query = """select * from weather.forecast where woeid in (select woeid from geo.places(1) where text=\"""" + self.location + """\")&format=json"""
-        query = query.replace(" ","%20")
-        output = http.request('GET', self.url+query)
-        # Ignore decode problem.
         try:
-            self.content = json.loads(output.data.decode('utf-8'))
-        except Exception:
-            pass
+            result_bytes = urllib.request.urlopen(self.url)
+            self.content = json.load(result_bytes)
+        except urllib.error.HTTPError as e:
+            error_info = e.read().decode()
+            print('Error code: ', e.code, error_info)
+            sys.exit()
+        except urllib.error.URLError as e:
+            error_info = e.read().decode()
+            print('Error code: ', e.code, error_info)
+            sys.exit()
 
     # Get the icon image for the current weather
     def getCurrentIcon(self):
         try:
-            icon = PhotoImage(file="./images/" + self.content["query"]["results"]["channel"]["item"]["condition"]["code"] + ".png")
-            return icon
+            icon = PhotoImage(file="./images/" + self.content["currentConditions"]["icon"] + ".png")
         except Exception:
             icon = PhotoImage(file="./images/3200.png")
         return icon
 
     # Initial run start up.
     def run(self):
-
         # Display Current Time
         self.currentTimeString = StringVar()
         currentTime = Label(self.top, textvariable=self.currentTimeString, font=("Pixeled", 25, "bold"), fg="white", bg="black")
-        currentTime.grid(row=0,column=0, columnspan=2)
-        self.currentTimeString.set(datetime.datetime.now().strftime("%H:%M:%S %p"))
+        currentTime.grid(row=0, column=0, columnspan=2)
+        self.currentTimeString.set(datetime.datetime.now().strftime("%I:%M:%S %p"))
 
         # Display Date
         self.dateString = StringVar()
-        dateInfo = Label(self.top, textvariable=self.dateString, fg="white", bg="black", font=(None , 20, "bold"))
-        dateInfo.grid(row=1,column=0, columnspan=2)
-
+        dateInfo = Label(self.top, textvariable=self.dateString, fg="white", bg="black", font=(None, 20, "bold"))
+        dateInfo.grid(row=1, column=0, columnspan=2)
 
         # Display Today Temperature
         self.currentTempString = StringVar()
@@ -96,10 +94,10 @@ class main():
 
         # Display Weather Last Update
         self.weatherLastUpdateString = StringVar()
-        weatherLastUpdate = Label(textvariable=self.weatherLastUpdateString, fg="white", bg="black", font=(None, 10, "bold"))
-        weatherLastUpdate.grid(row=3,column=0, columnspan=2)
+        weatherLastUpdate = Label(self.top, textvariable=self.weatherLastUpdateString, fg="white", bg="black", font=(None, 10, "bold"))
+        weatherLastUpdate.grid(row=3, column=0, columnspan=2)
 
-        # refresh data
+        # Refresh data
         self.refreshWeather()
         self.refreshTime()
 
@@ -115,13 +113,13 @@ class main():
         self.currentWeatherImage.image = icon
 
         # Update current temperature text
-        temp = float(float(self.content["query"]["results"]["channel"]["item"]["condition"]["temp"]) - 32) / 1.8
-        highTemp = float(float(self.content["query"]["results"]["channel"]["item"]["forecast"][0]["high"]) - 32) / 1.8
-        lowTemp = float(float(self.content["query"]["results"]["channel"]["item"]["forecast"][0]["low"]) - 32) / 1.8
-        self.currentTempString.set("Current: " + str(int(temp)) + "°\nHigh: " + str(int(highTemp)) + "°\nLow: " + str(int(lowTemp)) + "°")
+        temp = float(self.content["currentConditions"]["temp"])
+        highTemp = float(self.content["days"][0]["tempmax"])
+        lowTemp = float(self.content["days"][0]["tempmin"])
+        self.currentTempString.set(f"Current: {int(temp)}°\nHigh: {int(highTemp)}°\nLow: {int(lowTemp)}°")
 
         # Update weather last update
-        self.weatherLastUpdateString.set("Last update: " +  str(datetime.datetime.now().strftime("%I:%M:%S %p")))
+        self.weatherLastUpdateString.set("Last update: " + datetime.datetime.now().strftime("%I:%M:%S %p"))
 
         # Refresh Weather
         self.weatherThread = threading.Timer(self.weatherRefresh, self.refreshWeather)
@@ -129,7 +127,7 @@ class main():
 
     # Refresh Time info
     def refreshTime(self):
-        # Update  Time
+        # Update Time
         self.currentTimeString.set(datetime.datetime.now().strftime("%I:%M:%S %p"))
 
         # Update date
@@ -147,4 +145,4 @@ class main():
         self.top.destroy()
 
 if __name__ == "__main__":
-    main()
+    MainApp()
